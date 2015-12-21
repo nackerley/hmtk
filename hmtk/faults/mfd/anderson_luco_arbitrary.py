@@ -9,18 +9,18 @@
 #
 # The Hazard Modeller's Toolkit is free software: you can redistribute
 # it and/or modify it under the terms of the GNU Affero General Public
-# License as published by the Free Software Foundation, either version
-# 3 of the License, or (at your option) any later version.
+# License as published by the Free Software Foundation, either version
+# 3 of the License, or (at your option) any later version.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with OpenQuake. If not, see <http://www.gnu.org/licenses/>
 #
-# DISCLAIMER
-# 
+# DISCLAIMER
+#
 # The software Hazard Modeller's Toolkit (hmtk) provided herein
-# is released as a prototype implementation on behalf of
+# is released as a prototype implementation on behalf of
 # scientists and engineers working within the GEM Foundation (Global
-# Earthquake Model).
+# Earthquake Model).
 #
 # It is distributed for the purpose of open collaboration and in the
 # hope that it will be useful to the scientific, engineering, disaster
@@ -38,9 +38,9 @@
 # (hazard@globalquakemodel.org).
 #
 # The Hazard Modeller's Toolkit (hmtk) is therefore distributed WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
-# for more details.
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+# for more details.
 #
 # The GEM Foundation, and the authors of the software, assume no
 # liability for use of the software.
@@ -111,7 +111,8 @@ class Type1RecurrenceModel(BaseRecurrenceModel):
         '''
         moment_ratio = slip_moment / _scale_moment(mmax)
         delta_m = mmax - mag_value
-        return ((dbar - bbar) / dbar) * moment_ratio * np.exp(bbar * (delta_m))
+        a_one = (dbar - bbar)/dbar*moment_ratio
+        return (delta_m > 0)*(a_one*np.exp(bbar*delta_m))
 
 
 class Type2RecurrenceModel(BaseRecurrenceModel):
@@ -137,8 +138,8 @@ class Type2RecurrenceModel(BaseRecurrenceModel):
         '''
         moment_ratio = slip_moment / _scale_moment(mmax)
         delta_m = mmax - mag_value
-        return (dbar - bbar) * moment_ratio * \
-               ((np.exp(bbar * delta_m) - 1.) / bbar)
+        a_two = (dbar - bbar)/bbar*moment_ratio
+        return (delta_m > 0)*(a_two*(np.exp(bbar * delta_m) - 1.))
 
 
 class Type3RecurrenceModel(BaseRecurrenceModel):
@@ -164,9 +165,10 @@ class Type3RecurrenceModel(BaseRecurrenceModel):
         '''
         moment_ratio = slip_moment / _scale_moment(mmax)
         delta_m = mmax - mag_value
-        rhs_1 = (dbar * (dbar - bbar)) / bbar
-        rhs_3 = (1. / bbar) * (np.exp(bbar * delta_m) - 1.) - delta_m
-        return rhs_1 * moment_ratio * rhs_3
+        a_three = (dbar - bbar)*dbar/(bbar ** 2)*moment_ratio
+        return (delta_m > 0)*(a_three
+                              * (np.exp(bbar*delta_m) - 1. - bbar*delta_m))
+
 
 RECURRENCE_MAP = {'First': Type1RecurrenceModel(),
                   'Second': Type2RecurrenceModel(),
@@ -292,8 +294,8 @@ class AndersonLucoArbitrary(BaseMFDfromSlip):
                          self.mmax + self.bin_width,
                          self.bin_width)
         if bbar >= dbar:
-            print ('b-value larger than 1.5 will produce invalid results in '
-                   'Anderson & Luco models')
+            print('b-value larger than 1.5 will produce invalid results in '
+                  'Anderson & Luco models')
             self.occurrence_rate = np.nan * np.ones(len(mags) - 1)
             return self.mmin, self.bin_width, self.occurrence_rate
 
