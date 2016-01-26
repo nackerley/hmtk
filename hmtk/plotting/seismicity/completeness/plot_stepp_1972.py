@@ -62,7 +62,7 @@ valid_markers = ['*', '+', '1', '2', '3', '4', '8', '<', '>', 'D', 'H', '^',
 DEFAULT_SIZE=(8., 6.)
 DEFAULT_OFFSET=(1.3, 1.0)
 
-def create_stepp_plot(model, filename, filetype='png', filedpi=300):
+def create_stepp_plot(model, filename=None, filetype='png', filedpi=300):
     '''
     Creates the classic Stepp (1972) plots for a completed Stepp analysis,
     and exports the figure to a file.
@@ -77,7 +77,7 @@ def create_stepp_plot(model, filename, filetype='png', filedpi=300):
         Resolution (dots per inch) of output file
     '''
     plt.figure(figsize=DEFAULT_SIZE)
-    if os.path.exists(filename):
+    if (filename is not None) and os.path.exists(filename):
         raise IOError('File already exists!')
 
     legend_list = [(str(model.magnitude_bin[iloc] + 0.01) + ' - ' +
@@ -125,4 +125,5 @@ def create_stepp_plot(model, filename, filetype='png', filedpi=300):
     plt.ylabel("$\\sigma_{\\lambda} = \\sqrt{\\lambda} / \\sqrt{T}$",
                fontsize=15)
     # Save figure to file
-    plt.savefig(filename, dpi=filedpi, format=filetype)
+    if filename is not None:
+		plt.savefig(filename, dpi=filedpi, format=filetype)
