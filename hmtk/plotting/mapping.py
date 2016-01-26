@@ -4,46 +4,46 @@
 #
 # LICENSE
 #
-# Copyright (c) 2010-2014, GEM Foundation, G. Weatherill, M. Pagani, 
+# Copyright (c) 2010-2014, GEM Foundation, G. Weatherill, M. Pagani,
 # D. Monelli., L. E. Rodriguez-Abreu
 #
-# The Hazard Modeller's Toolkit is free software: you can redistribute 
-# it and/or modify it under the terms of the GNU Affero General Public 
-# License as published by the Free Software Foundation, either version 
+# The Hazard Modeller's Toolkit is free software: you can redistribute
+# it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version
 # 3 of the License, or (at your option) any later version.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with OpenQuake. If not, see <http://www.gnu.org/licenses/>
 #
 # DISCLAIMER
-# 
-# The software Hazard Modeller's Toolkit (hmtk) provided herein 
-# is released as a prototype implementation on behalf of 
-# scientists and engineers working within the GEM Foundation (Global 
-# Earthquake Model). 
 #
-# It is distributed for the purpose of open collaboration and in the 
+# The software Hazard Modeller's Toolkit (hmtk) provided herein
+# is released as a prototype implementation on behalf of
+# scientists and engineers working within the GEM Foundation (Global
+# Earthquake Model).
+#
+# It is distributed for the purpose of open collaboration and in the
 # hope that it will be useful to the scientific, engineering, disaster
-# risk and software design communities. 
-# 
-# The software is NOT distributed as part of GEM's OpenQuake suite 
-# (http://www.globalquakemodel.org/openquake) and must be considered as a 
-# separate entity. The software provided herein is designed and implemented 
-# by scientific staff. It is not developed to the design standards, nor 
-# subject to same level of critical review by professional software 
-# developers, as GEM's OpenQuake software suite.  
-# 
-# Feedback and contribution to the software is welcome, and can be 
-# directed to the hazard scientific staff of the GEM Model Facility 
-# (hazard@globalquakemodel.org). 
-# 
-# The Hazard Modeller's Toolkit (hmtk) is therefore distributed WITHOUT 
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
-# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License 
+# risk and software design communities.
+#
+# The software is NOT distributed as part of GEM's OpenQuake suite
+# (http://www.globalquakemodel.org/openquake) and must be considered as a
+# separate entity. The software provided herein is designed and implemented
+# by scientific staff. It is not developed to the design standards, nor
+# subject to same level of critical review by professional software
+# developers, as GEM's OpenQuake software suite.
+#
+# Feedback and contribution to the software is welcome, and can be
+# directed to the hazard scientific staff of the GEM Model Facility
+# (hazard@globalquakemodel.org).
+#
+# The Hazard Modeller's Toolkit (hmtk) is therefore distributed WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
 # for more details.
-# 
-# The GEM Foundation, and the authors of the software, assume no 
-# liability for use of the software. 
+#
+# The GEM Foundation, and the authors of the software, assume no
+# liability for use of the software.
 
 #!/usr/bin/env/python
 
@@ -136,6 +136,10 @@ class HMTKBaseMap(object):
         lowcrnrlon = self.config['min_lon']
         uppcrnrlat = self.config['max_lat']
         uppcrnrlon = self.config['max_lon']
+        if 'parallel_meridian_spacing' in self.config.keys():
+            spacing = self.config['parallel_meridian_spacing']
+        else:
+            spacing = 2.
         if not 'resolution' in self.config.keys():
             self.config['resolution'] = 'l'
 
@@ -145,15 +149,15 @@ class HMTKBaseMap(object):
             fig_aspect = PORTRAIT_ASPECT
         else:
             fig_aspect = LANDSCAPE_ASPECT
-        self.fig = plt.figure(num=None,
-                              figsize=fig_aspect,
-                              dpi=self.dpi,
-                              facecolor='w',
-                              edgecolor='k')
+#        self.fig = plt.figure(num=None,
+#                              figsize=fig_aspect,
+#                              dpi=self.dpi,
+#                              facecolor='w',
+#                              edgecolor='k')
         if self.title:
             plt.title(self.title, fontsize=16)
-        parallels = np.arange(-90., 90., 2.)
-        meridians = np.arange(0., 360., 2.)
+        parallels = np.arange(-90., 90., spacing)
+        meridians = np.arange(0., 360., spacing)
 
         # Build Map
         self.m = Basemap(
@@ -202,14 +206,14 @@ class HMTKBaseMap(object):
         # Magnitudes bins and minimum marrker size
         #min_mag = np.min(catalogue.data['magnitude'])
         #max_mag = np.max(catalogue.data['magnitude'])
-        con_min = np.where(np.array([symb[0] for symb in DEFAULT_SYMBOLOGY]) < 
+        con_min = np.where(np.array([symb[0] for symb in DEFAULT_SYMBOLOGY]) <
                            np.min(catalogue.data['magnitude']))[0]
         con_max = np.where(np.array([symb[1] for symb in DEFAULT_SYMBOLOGY]) >
                            np.max(catalogue.data['magnitude']))[0]
         if len(con_min) == 1:
             min_loc = con_min[0]
         else:
-            min_loc = con_min[-1] 
+            min_loc = con_min[-1]
         if len(con_max) == 1:
             max_loc = con_max[0]
         else:
@@ -359,7 +363,7 @@ class HMTKBaseMap(object):
             plt.show()
 
     def add_colour_scaled_points(self, longitude, latitude, data, shape='s',
-            alpha=1.0, size=20, norm=None, overlay=False):
+            alpha=1.0, size=20, norm=None, overlay=False, add_colorbar=True):
         """
         Overlays a set of points on a map with a fixed size but colour scaled
         according to the data
@@ -389,13 +393,14 @@ class HMTKBaseMap(object):
                        alpha=alpha,
                        linewidths=0.0,
                        zorder=4)
-        self.m.colorbar()
+        if add_colorbar:
+            self.m.colorbar()
         if not overlay:
             plt.show()
 
     def add_size_scaled_points(self, longitude, latitude, data, shape='o',
             logplot=False, alpha=1.0, colour='b', smin=2.0, sscale=2.0,
-            overlay=False):
+            overlay=False, zorder=2):
         """
         Plots a set of points with size scaled according to the data
         :param bool logplot:
