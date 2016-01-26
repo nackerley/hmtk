@@ -7,7 +7,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, Normalize
-from math import log10
+from itertools import cycle
+
 
 # Default the figure size
 DEFAULT_SIZE = (8., 6.)
@@ -35,6 +36,7 @@ def build_filename(filename, filetype='png', resolution=300):
         resolution = 300
     return filename, filetype, resolution
 
+
 def _save_image(filename, filetype='png', resolution=300):
     """
     If filename is specified, saves the image
@@ -54,6 +56,7 @@ def _save_image(filename, filetype='png', resolution=300):
         pass
     return
 
+
 def _get_catalogue_bin_limits(catalogue, dmag):
     """
     Returns the magnitude bins corresponing to the catalogue
@@ -67,8 +70,10 @@ def _get_catalogue_bin_limits(catalogue, dmag):
     mag_bins = mag_bins[idx[0]:idx[-1] + 3]
     return mag_bins
 
+
 def plot_depth_histogram(catalogue, bin_width,  normalisation=False,
-        bootstrap=None, filename=None, filetype='png', dpi=300):
+                         bootstrap=None,
+                         filename=None, filetype='png', dpi=300):
     """
     Creates a histogram of the depths in the catalogue
     :param catalogue:
@@ -103,12 +108,11 @@ def plot_depth_histogram(catalogue, bin_width,  normalisation=False,
     plt.title('Depth Histogram', fontsize='large')
 
     _save_image(filename, filetype, dpi)
-    plt.show()
-    return
+
 
 def plot_magnitude_depth_density(catalogue, mag_int, depth_int, logscale=False,
-        normalisation=False, bootstrap=None, filename=None, filetype='png',
-        dpi=300):
+                                 normalisation=False, bootstrap=None,
+                                 filename=None, filetype='png', dpi=300):
     """
     Creates a density plot of the magnitude and depth distribution
     :param catalogue:
@@ -157,11 +161,10 @@ def plot_magnitude_depth_density(catalogue, mag_int, depth_int, logscale=False,
         plt.title('Magnitude-Depth Count', fontsize='large')
 
     _save_image(filename, filetype, dpi)
-    plt.show()
-    return
+
 
 def plot_magnitude_time_scatter(catalogue, plot_error=False, filename=None,
-        filetype='png', dpi=300, fmt_string='o'):
+                                filetype='png', dpi=300, fmt_string='o'):
     """
     Creates a simple scatter plot of magnitude with time
     :param catalogue:
@@ -191,12 +194,12 @@ def plot_magnitude_time_scatter(catalogue, plot_error=False, filename=None,
     plt.title('Magnitude-Time Plot', fontsize='large')
 
     _save_image(filename, filetype, dpi)
-    plt.show()
-    return
+
 
 def plot_magnitude_time_density(catalogue, mag_int, time_int,
-        normalisation=False, bootstrap=None, filename=None, filetype='png',
-        dpi=300, completeness=None):
+                                normalisation=False, bootstrap=None,
+                                filename=None, filetype='png', dpi=300,
+                                completeness=None):
     """
     Creates a plot of magnitude-time density
     :param catalogue:
@@ -211,14 +214,14 @@ def plot_magnitude_time_density(catalogue, mag_int, time_int,
     :param int bootstrap:
         To sample magnitude and depth uncertainties choose number of samples
     """
-    plt.figure(figsize=DEFAULT_SIZE)
+
     # Create the magnitude bins
     if isinstance(mag_int, np.ndarray) or isinstance(mag_int, list):
         mag_bins = mag_int
     else:
         mag_bins = np.arange(
             np.min(catalogue.data['magnitude']),
-            np.max(catalogue.data['magnitude']) + mag_int / 2.,
+            np.max(catalogue.data['magnitude']) + 0.5*mag_int,
             mag_int)
     # Creates the time bins
     if isinstance(time_int, np.ndarray) or isinstance(time_int, list):
@@ -237,38 +240,42 @@ def plot_magnitude_time_density(catalogue, mag_int, time_int,
     # Get smallest non-zero value
     vmin_val = np.min(mag_time_dist[mag_time_dist > 0.])
     # Create plot
-    plt.pcolor(time_bins[:-1],
-               mag_bins[:-1],
+    plt.pcolor(time_bins,
+               mag_bins,
                mag_time_dist.T,
                norm=LogNorm(vmin=vmin_val, vmax=np.max(mag_time_dist)))
-    plt.xlabel('Time (year)', fontsize='large')
-    plt.ylabel('Magnitude', fontsize='large')
+    plt.ylabel('Magnitude')
     plt.xlim(time_bins[0], time_bins[-1])
-    plt.colorbar()
-    # Plot completeness
+    plt.yticks(plt.yticks()[0][:-1])
+
+    if normalisation:
+        plt.colorbar(label='Event Density', shrink=0.9)
+    else:
+        plt.colorbar(label='Event Count', shrink=0.9)
+    # Overlay completeness
     if completeness is not None:
         _plot_completeness(completeness)
-    # Fix the title
-    if normalisation is True:
-        plt.title('Magnitude-Time Density', fontsize='large')
-    else:
-        plt.title('Magnitude-Time Count', fontsize='large')
 
     _save_image(filename, filetype, dpi)
-    plt.show()
-    return
 
-def _plot_completeness(comw):
-    x = []
-    y = []
-    for idx in range(0, len(comw)-2):
-        x.append(comw[idx,0])
-        y.append(comw[idx,1])
-        x.append(comw[idx+1,0])
-        y.append(comw[idx,1])
-    print x
-    print y
-    plt.plot(x, y, '--', linewidth=3, color='brown')
+
+def _plot_completeness(completeness_tables):
+    """
+    Overlay one or more completeness tables on a magnitude-time plot.
+    """
+    completeness_tables = np.array(completeness_tables)
+    if len(completeness_tables.shape) < 3:
+        completeness_tables.reshape((1, completeness_tables.shape))
+
+    line_styles = cycle(['-', '--', '-.', ':'])
+    for data in completeness_tables:
+        data = np.flipud(data[np.argsort(data[:, 0]), :])
+        start = [data[-1, 0], plt.gca().get_ylim()[1]]
+        end = [plt.gca().get_xlim()[1], data[0, 1]]
+        data = np.vstack((end, data, start))
+        plt.step(data[:, 0], data[:, 1], where='pre',
+                 linewidth=2, linestyle=next(line_styles), color='brown')
+
 
 def get_completeness_adjusted_table(catalogue, completeness, dmag, end_year):
     """
@@ -298,11 +305,11 @@ def get_completeness_adjusted_table(catalogue, completeness, dmag, end_year):
 
             idx = np.logical_and(mag_idx,
                                  catalogue.data['year'] >= comp_year - inc)
-            obs_idx = np.logical_and(mag_bins >= low_mag - dmag /2.,
+            obs_idx = np.logical_and(mag_bins >= low_mag - dmag / 2.,
                                      mag_bins < high_mag + dmag)
         temp_rates = np.histogram(catalogue.data['magnitude'][idx],
                                   mag_bins[obs_idx])[0]
-        #print mag_bins[obs_idx], temp_rates
+        # print mag_bins[obs_idx], temp_rates
         temp_rates = temp_rates.astype(float) / obs_time[iloc]
         if iloc == n_comp - 1:
             # TODO This hack seems to fix the error in Numpy v.1.8.1
@@ -314,16 +321,17 @@ def get_completeness_adjusted_table(catalogue, completeness, dmag, end_year):
     obs_rates = obs_rates[selector[0]:selector[-1] + 1]
     # Get cumulative rates
     cum_rates = np.array([sum(obs_rates[iloc:])
-                                for iloc in range(0, len(obs_rates))])
+                          for iloc in range(0, len(obs_rates))])
     out_idx = cum_rates > 0.
-    #print mag_bins[out_idx], obs_rates[out_idx], cum_rates[out_idx]
+    # print mag_bins[out_idx], obs_rates[out_idx], cum_rates[out_idx]
     return np.column_stack([mag_bins[out_idx],
                             obs_rates[out_idx],
                             cum_rates[out_idx],
                             np.log10(cum_rates[out_idx])])
 
+
 def plot_observed_recurrence(catalogue, completeness, dmag, end_year=None,
-        filename=None, filetype='png', dpi=300):
+                             filename=None, filetype='png', dpi=300):
     """
     Plots the observed recurrence taking into account the completeness
     """
@@ -347,4 +355,3 @@ def plot_observed_recurrence(catalogue, completeness, dmag, end_year=None,
     plt.legend(['Incremental', 'Cumulative'])
 
     _save_image(filename, filetype, dpi)
-    plt.show()
