@@ -1,3 +1,4 @@
+#!/usr/bin/env/python
 # -*- coding: utf-8 -*-
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
 
@@ -9,18 +10,18 @@
 #
 # The Hazard Modeller's Toolkit is free software: you can redistribute
 # it and/or modify it under the terms of the GNU Affero General Public
-# License as published by the Free Software Foundation, either version
-# 3 of the License, or (at your option) any later version.
+# License as published by the Free Software Foundation, either version
+# 3 of the License, or (at your option) any later version.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with OpenQuake. If not, see <http://www.gnu.org/licenses/>
 #
-# DISCLAIMER
-# 
+# DISCLAIMER
+#
 # The software Hazard Modeller's Toolkit (hmtk) provided herein
-# is released as a prototype implementation on behalf of
+# is released as a prototype implementation on behalf of
 # scientists and engineers working within the GEM Foundation (Global
-# Earthquake Model).
+# Earthquake Model).
 #
 # It is distributed for the purpose of open collaboration and in the
 # hope that it will be useful to the scientific, engineering, disaster
@@ -38,14 +39,12 @@
 # (hazard@globalquakemodel.org).
 #
 # The Hazard Modeller's Toolkit (hmtk) is therefore distributed WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
-# for more details.
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+# for more details.
 #
 # The GEM Foundation, and the authors of the software, assume no
 # liability for use of the software.
-
-#!/usr/bin/env/python
 
 '''
 Module :mod: 'hmtk.plotting.seismicity.completeness.plot_stepp_1971'
@@ -53,16 +52,22 @@ creates plot to illustrate outcome of Stepp (1972) method for completeness
 analysis
 '''
 import os.path
+import itertools
+from copy import deepcopy
+
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import AnchoredText
 
-valid_markers = ['*', '+', '1', '2', '3', '4', '8', '<', '>', 'D', 'H', '^',
-                 '_', 'd', 'h', 'o', 'p', 's', 'v', 'x', '|']
+from hmtk.seismicity.completeness.comp_stepp_1971 import Stepp1971
 
-DEFAULT_SIZE=(8., 6.)
-DEFAULT_OFFSET=(1.3, 1.0)
+# markers which can be filled or empty
+VALID_MARKERS = ['s', 'o', '^', 'D', 'p', 'h', '8',
+                 '*', 'd', 'v', '<', '>', 'H']
 
-def create_stepp_plot(model, filename=None, filetype='png', filedpi=300):
+
+def create_stepp_plot(model, filename=None, filetype='png', filedpi=300,
+                      ax=None, fig=None):
     '''
     Creates the classic Stepp (1972) plots for a completed Stepp analysis,
     and exports the figure to a file.
@@ -76,54 +81,96 @@ def create_stepp_plot(model, filename=None, filetype='png', filedpi=300):
     :param int filedpi:
         Resolution (dots per inch) of output file
     '''
-    plt.figure(figsize=DEFAULT_SIZE)
+
     if (filename is not None) and os.path.exists(filename):
         raise IOError('File already exists!')
 
-    legend_list = [(str(model.magnitude_bin[iloc] + 0.01) + ' - ' +
-                   str(model.magnitude_bin[iloc + 1])) for iloc in range(0,
-                   len(model.magnitude_bin) - 1)]
+    if fig is None:
+        fig = plt.gcf()
+    if ax is None:
+        ax = fig.gca()
 
-    rgb_list = []
-    marker_vals = []
-    # Get marker from valid list
-    while len(valid_markers) < len(model.magnitude_bin):
-        valid_markers.append(valid_markers)
+    # get colours from current axes: thus user can set up before calling
+    valid_colours = ax._get_lines.color_cycle
+    colour_cyclers = itertools.tee(itertools.cycle(valid_colours), 3)
+    marker_cyclers = itertools.tee(itertools.cycle(VALID_MARKERS), 3)
 
-    marker_sampler = np.arange(0, len(valid_markers), 1)
-    np.random.shuffle(marker_sampler)
-    # Get colour for each bin
-    for value in range(0, len(model.magnitude_bin) - 1):
-        rgb_samp = np.random.uniform(0., 1., 3)
-        rgb_list.append((rgb_samp[0], rgb_samp[1], rgb_samp[2]))
-        marker_vals.append(valid_markers[marker_sampler[value]])
-    # Plot observed Sigma lambda
-    for iloc in range(0, len(model.magnitude_bin) - 1):
-        plt.loglog(model.time_values,
-                   model.sigma[:, iloc],
-                   linestyle='None',
-                   marker=marker_vals[iloc],
-                   color=rgb_list[iloc])
+    # plot observed Sigma lambda
+    for i, mag_bin in enumerate(model.magnitude_bin[:-1]):
+        label = '(%g, %g]: %d' % (mag_bin,
+                                  mag_bin + model.config['magnitude_bin'],
+                                  model.completeness_table[i, 0])
+        colour = next(colour_cyclers[0])
+        ax.loglog(model.time_values, model.sigma[:, i],
+                  linestyle='none',
+                  marker=next(marker_cyclers[0]),
+                  markersize=3,
+                  markerfacecolor=colour,
+                  markeredgecolor=colour,
+                  label=label)
 
-    plt.legend(legend_list, bbox_to_anchor=DEFAULT_OFFSET)
-    plt.grid(True)
-    # Plot expected Poisson rate
-    for iloc in range(0, len(model.magnitude_bin) - 1):
-        plt.loglog(model.time_values,
-                   model.model_line[:, iloc],
-                   linestyle='-',
-                   marker='None',
-                   color=rgb_list[iloc])
-        plt.xlim(model.time_values[0] / 2., 2. * model.time_values[-1])
-        xmarker = model.end_year - model.completeness_table[iloc, 0]
-        id0 = model.model_line[:, iloc] > 0.
+    # plot expected Poisson rate
+    for i in range(0, len(model.magnitude_bin) - 1):
+        ax.loglog(model.time_values, model.model_line[:, i],
+                  color=next(colour_cyclers[1]),
+                  linewidth=0.5)
+
+    # mark breaks from expected rate
+    for i in range(0, len(model.magnitude_bin) - 1):
+        colour = next(colour_cyclers[2])
+        if np.any(np.isnan(model.model_line[:, i])):
+            continue
+        xmarker = model.end_year - model.completeness_table[i, 0]
+        knee = model.model_line[:, i] > 0.
         ymarker = 10.0 ** np.interp(np.log10(xmarker),
-                                    np.log10(model.time_values[id0]),
-                                    np.log10(model.model_line[id0, iloc]))
-        plt.loglog(xmarker, ymarker, 'ks')
-    plt.xlabel('Time (years)', fontsize=15)
-    plt.ylabel("$\\sigma_{\\lambda} = \\sqrt{\\lambda} / \\sqrt{T}$",
-               fontsize=15)
-    # Save figure to file
+                                    np.log10(model.time_values[knee]),
+                                    np.log10(model.model_line[knee, i]))
+        ax.loglog(xmarker, ymarker,
+                  marker=next(marker_cyclers[2]),
+                  markerfacecolor='white',
+                  markeredgecolor=colour)
+
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
+    ax.set_xlabel('Time (years)')
+    ax.set_ylabel("$\\sigma_{\\lambda} = \\sqrt{\\lambda} / \\sqrt{T}$")
+    ax.autoscale(enable=True, axis='both', tight=True)
+
+    # save figure to file
     if filename is not None:
-		plt.savefig(filename, dpi=filedpi, format=filetype)
+        fig.savefig(filename, dpi=filedpi, format=filetype)
+
+
+def plot_completeness_slices(catalogue, slice_key, slice_ids,
+                             mag_bin=1., time_bin=1.,
+                             deduplicate=True, mag_range=(4., None),
+                             year_range=None):
+    """
+    Stepp (1971) analysis on sub-catalogues, where `slice_key` and
+    `slice_ids` determine how the sub-catalouges are formed.
+    """
+
+    comp_config = {'magnitude_bin': mag_bin,
+                   'time_bin': time_bin,
+                   'increment_lock': True}
+
+    fig, axes = plt.subplots(len(slice_ids), 1,
+                             figsize=(8, 3*len(slice_ids)), sharex=True)
+    fig.subplots_adjust(hspace=0)
+    slice_completeness_tables = []
+    for ax, slice_id in zip(axes, slice_ids):
+
+        catalogue_slice = deepcopy(catalogue)
+        in_slice = catalogue_slice.data[slice_key] == slice_id
+        catalogue_slice.select_catalogue_events(in_slice)
+
+        model = Stepp1971()
+        model.completeness(catalogue_slice, comp_config)
+        model.simplify(deduplicate, mag_range, year_range)
+        slice_completeness_tables.append(model.completeness_table.tolist())
+
+        plt.sca(ax)
+        ax_label = '%s %d' % (slice_key, slice_id)
+        ax.add_artist(AnchoredText(ax_label, loc=3, frameon=False))
+        create_stepp_plot(model)
+
+    return slice_completeness_tables
