@@ -1,3 +1,4 @@
+#! /usr/bin/env/python
 # -*- coding: utf-8 -*-
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
 
@@ -44,8 +45,6 @@
 #
 # The GEM Foundation, and the authors of the software, assume no
 # liability for use of the software.
-
-#/usr/bin/env/python
 
 """
 Module :mod: 'hmtk.seismicity.completeness.comp_stepp_1972' defines the
@@ -167,6 +166,9 @@ class Stepp1971(BaseCatalogueCompleteness):
             catalogue.data['second'])
         mag = catalogue.data['magnitude']
 
+        # store configuration
+        self.config = config
+
         # Get magnitude bins
         self.magnitude_bin = self._get_magnitudes_from_spacing(
             catalogue.data['magnitude'],
@@ -198,6 +200,43 @@ class Stepp1971(BaseCatalogueCompleteness):
             np.floor(self.end_year - comp_time),
             self.magnitude_bin[:-1]])
         return self.completeness_table
+
+    def simplify(self, deduplicate=True, mag_range=None, year_range=None):
+        """
+        Simplify a completeness table result. Intended to work with
+        'increment_lock' enabled.
+        """
+
+        if self.completeness_table is None:
+            return
+
+        years = self.completeness_table[:, 0]
+        mags = self.completeness_table[:, 1]
+        keep = np.array([True]*years.shape[0])
+
+        if deduplicate:
+            keep[1:] = years[1:] != years[:-1]
+
+        if year_range is not None:
+            year_min, year_max = year_range
+            if year_min is not None:
+                too_early = years < year_min
+                keep &= years >= years[too_early].max()
+                self.completeness_table[too_early, 0] = year_min
+            if year_max is not None:
+                keep &= years <= year_max
+
+        if mag_range is not None:
+            mag_min, mag_max = mag_range
+            if mag_min is not None:
+                keep &= mags >= mag_min
+            if mag_max is not None:
+                keep &= mags <= mag_max
+
+        self.completeness_table = self.completeness_table[keep, :]
+        self.model_line = self.model_line[:, keep]
+        self.sigma = self.sigma[:, keep]
+        self.magnitude_bin = self.magnitude_bin[np.hstack((keep, True))]
 
     def _get_time_limits_from_config(self, config, dec_year):
         '''
