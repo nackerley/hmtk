@@ -4,14 +4,16 @@
 Collection of tools for plotting descriptive statistics of a catalogue
 """
 import os
+import itertools
+from copy import deepcopy
+
 import numpy as np
 import matplotlib.pyplot as plt
+
 from matplotlib.colors import LogNorm, Normalize
-from itertools import cycle
+from matplotlib.offsetbox import AnchoredText
 
-
-# Default the figure size
-DEFAULT_SIZE = (8., 6.)
+VALID_LINESTYLES = ['-', '--', '-.', ':']
 
 
 def build_filename(filename, filetype='png', resolution=300):
@@ -47,7 +49,7 @@ def _save_image(filename, filetype='png', resolution=300):
     :param int resolution:
         DPI resolution of the output figure
     """
-    if filename:
+    if filename is not None:
         filename, filetype, resolution = build_filename(filename,
                                                         filetype,
                                                         resolution)
@@ -71,7 +73,7 @@ def _get_catalogue_bin_limits(catalogue, dmag):
     return mag_bins
 
 
-def plot_depth_histogram(catalogue, bin_width,  normalisation=False,
+def plot_depth_histogram(catalogue, bin_width, normalisation=False,
                          bootstrap=None,
                          filename=None, filetype='png', dpi=300):
     """
@@ -86,7 +88,7 @@ def plot_depth_histogram(catalogue, bin_width,  normalisation=False,
     :param int bootstrap:
         To sample depth uncertainty choose number of samples
     """
-    plt.figure(figsize=DEFAULT_SIZE)
+
     # Create depth range
     if len(catalogue.data['depth']) == 0:
         raise ValueError('No depths reported in catalogue!')
@@ -145,7 +147,7 @@ def plot_magnitude_depth_density(catalogue, mag_int, depth_int, logscale=False,
         normaliser = LogNorm(vmin=vmin_val, vmax=np.max(mag_depth_dist))
     else:
         normaliser = Normalize(vmin=0, vmax=np.max(mag_depth_dist))
-    plt.figure(figsize=DEFAULT_SIZE)
+
     plt.pcolor(mag_bins[:-1],
                depth_bins[:-1],
                mag_depth_dist.T,
@@ -175,10 +177,10 @@ def plot_magnitude_time_scatter(catalogue, plot_error=False, filename=None,
     :param str fmt_string:
         Symbology of plot
     """
-    plt.figure(figsize=DEFAULT_SIZE)
+
     dtime = catalogue.get_decimal_time()
     if len(catalogue.data['sigmaMagnitude']) == 0:
-        print 'Magnitude Error is missing - neglecting error bars!'
+        print('Magnitude Error is missing - neglecting error bars!')
         plot_error = False
 
     if plot_error:
@@ -259,6 +261,31 @@ def plot_magnitude_time_density(catalogue, mag_int, time_int,
     _save_image(filename, filetype, dpi)
 
 
+def plot_mag_time_density_slices(
+        catalogue, completeness_tables, slice_key, slice_ids,
+        mag_bin=0.1, time_bin=1):
+    """
+    Magnitude-time density plots on sub-catalogues, where `slice_key` and
+    `slice_ids` determine how the sub-catalouges are formed.
+    """
+
+    fig, axes = plt.subplots(len(slice_ids), 1,
+                             figsize=(8, 3*len(slice_ids)), sharex=True)
+    fig.subplots_adjust(hspace=0)
+    for ax, slice_id, completeness_tables_slice \
+            in zip(axes, slice_ids, completeness_tables):
+        plt.sca(ax)
+        ax_label = '%s %d' % (slice_key, slice_id)
+        ax.add_artist(AnchoredText(ax_label, loc=3, frameon=False))
+
+        catalogue_slice = deepcopy(catalogue)
+        in_slice = catalogue_slice.data[slice_key] == slice_id
+        catalogue_slice.select_catalogue_events(in_slice)
+        plot_magnitude_time_density(
+            catalogue_slice, mag_bin, time_bin,
+            completeness=completeness_tables_slice)
+
+
 def _plot_completeness(completeness_tables):
     """
     Overlay one or more completeness tables on a magnitude-time plot.
@@ -267,14 +294,14 @@ def _plot_completeness(completeness_tables):
     if len(completeness_tables.shape) < 3:
         completeness_tables.reshape((1, completeness_tables.shape))
 
-    line_styles = cycle(['-', '--', '-.', ':'])
+    linestyle_cycler = itertools.cycle(VALID_LINESTYLES)
     for data in completeness_tables:
         data = np.flipud(data[np.argsort(data[:, 0]), :])
         start = [data[-1, 0], plt.gca().get_ylim()[1]]
         end = [plt.gca().get_xlim()[1], data[0, 1]]
         data = np.vstack((end, data, start))
         plt.step(data[:, 0], data[:, 1], where='pre',
-                 linewidth=2, linestyle=next(line_styles), color='brown')
+                 linewidth=2, linestyle=next(linestyle_cycler), color='brown')
 
 
 def get_completeness_adjusted_table(catalogue, completeness, dmag, end_year):
@@ -346,7 +373,7 @@ def plot_observed_recurrence(catalogue, completeness, dmag, end_year=None,
                                                  completeness,
                                                  dmag,
                                                  end_year)
-    plt.figure(figsize=DEFAULT_SIZE)
+
     plt.semilogy(recurrence[:, 0], recurrence[:, 1], 'bo')
     plt.semilogy(recurrence[:, 0], recurrence[:, 2], 'rs')
     plt.xlim([recurrence[0, 0] - 0.1, recurrence[-1, 0] + 0.1])
