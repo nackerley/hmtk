@@ -1,4 +1,5 @@
 #!/usr/bin/env/python
+# -*- coding: UTF-8 -*-
 
 """
 Collection of tools for plotting descriptive statistics of a catalogue
@@ -74,7 +75,7 @@ def _get_catalogue_bin_limits(catalogue, dmag):
 
 
 def plot_depth_histogram(catalogue, bin_width, normalisation=False,
-                         bootstrap=None,
+                         bootstrap=None, colour='0.5', edgecolor='none',
                          filename=None, filetype='png', dpi=300):
     """
     Creates a histogram of the depths in the catalogue
@@ -98,16 +99,14 @@ def plot_depth_histogram(catalogue, bin_width, normalisation=False,
     depth_hist = catalogue.get_depth_distribution(depth_bins,
                                                   normalisation,
                                                   bootstrap)
-    plt.bar(depth_bins[:-1],
-            depth_hist,
-            width=0.95 * bin_width,
-            edgecolor='k')
-    plt.xlabel('Depth (km)', fontsize='large')
+
+    plt.bar(depth_bins[:-1], depth_hist,
+            width=0.95*bin_width, color=colour, edgecolor='none')
+    plt.xlabel('Depth (km)')
     if normalisation:
-        plt.ylabel('Probability Mass Function', fontsize='large')
+        plt.ylabel('Probability Mass Function')
     else:
         plt.ylabel('Count')
-    plt.title('Depth Histogram', fontsize='large')
 
     _save_image(filename, filetype, dpi)
 
@@ -152,15 +151,15 @@ def plot_magnitude_depth_density(catalogue, mag_int, depth_int, logscale=False,
                depth_bins[:-1],
                mag_depth_dist.T,
                norm=normaliser)
-    plt.xlabel('Magnitude', fontsize='large')
-    plt.ylabel('Depth (km)', fontsize='large')
+    plt.xlabel('Magnitude')
+    plt.ylabel('Depth (km)')
     plt.xlim(mag_bins[0], mag_bins[-1])
     plt.ylim(depth_bins[0], depth_bins[-1])
     plt.colorbar()
     if normalisation:
-        plt.title('Magnitude-Depth Density', fontsize='large')
+        plt.title('Magnitude-Depth Density')
     else:
-        plt.title('Magnitude-Depth Count', fontsize='large')
+        plt.title('Magnitude-Depth Count')
 
     _save_image(filename, filetype, dpi)
 
@@ -191,9 +190,9 @@ def plot_magnitude_time_scatter(catalogue, plot_error=False, filename=None,
                      fmt=fmt_string)
     else:
         plt.plot(dtime, catalogue.data['magnitude'], fmt_string)
-    plt.xlabel('Year', fontsize='large')
-    plt.ylabel('Magnitude', fontsize='large')
-    plt.title('Magnitude-Time Plot', fontsize='large')
+    plt.xlabel('Year')
+    plt.ylabel('Magnitude')
+    plt.title('Magnitude-Time Plot')
 
     _save_image(filename, filetype, dpi)
 
@@ -377,8 +376,53 @@ def plot_observed_recurrence(catalogue, completeness, dmag, end_year=None,
     plt.semilogy(recurrence[:, 0], recurrence[:, 1], 'bo')
     plt.semilogy(recurrence[:, 0], recurrence[:, 2], 'rs')
     plt.xlim([recurrence[0, 0] - 0.1, recurrence[-1, 0] + 0.1])
-    plt.xlabel('Magnitude', fontsize='large')
-    plt.ylabel('Annual Rate', fontsize='large')
+    plt.xlabel('Magnitude')
+    plt.ylabel('Annual Rate')
     plt.legend(['Incremental', 'Cumulative'])
 
     _save_image(filename, filetype, dpi)
+
+
+def plot_depth_distance(catalogue, limits, ordinate, name=None,
+                        colour='black', size=4):
+    """
+    Produces a "side-view" of a portion of a catalogue. Subcatalogue selection
+    is currently a simple rectangle of latitudes and longitudes. Ordinates
+    supported are currently 'latitude' or 'longitude'.
+
+    :param catalogue: instance of :class:`hmtk.seismicity.catalogue.Catalogue`
+    :param tuple limits: lat_min, lat_max, lon_min, lon_max
+    :param string ordinate: distance to plot on x-axis
+    """
+
+    assert ordinate in ['latitude', 'longitude']
+
+    subcatalogue = deepcopy(catalogue)
+
+    lat_min, lat_max, lon_min, lon_max = limits
+    in_box = ((subcatalogue.data['latitude'] >= lat_min) &
+              (subcatalogue.data['latitude'] <= lat_max) &
+              (subcatalogue.data['longitude'] >= lon_min) &
+              (subcatalogue.data['longitude'] <= lon_max))
+    subcatalogue.purge_catalogue(in_box)
+
+    if colour == 'magnitude':
+        colour = subcatalogue.data['magnitude']
+        cmap = 'jet'
+    else:
+        cmap = 'none'
+    plt.scatter(subcatalogue.data[ordinate], subcatalogue.data['depth'],
+                c=colour, s=size, cmap=cmap, edgecolor='none')
+
+    ax = plt.gcf().gca()
+    if ordinate == 'latitude':
+        ax_label = u'Longitude: %g°-%g°' % (lon_min, lon_max)
+        plt.xlabel(u'Latitude (°)')
+        plt.xlim(lat_min, lat_max)
+    else:
+        ax_label = u'Latitude: %g°-%g°' % (lat_min, lat_max)
+        plt.xlabel(u'Longitude (°)')
+        plt.xlim(lon_min, lon_max)
+    if name is not None:
+        ax_label = name + '\n' + ax_label
+    ax.add_artist(AnchoredText(ax_label, loc=2, frameon=False))
