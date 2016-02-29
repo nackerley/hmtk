@@ -49,7 +49,9 @@ import warnings
 import numpy as np
 from hmtk.seismicity.occurrence.base import (
     SeismicityOccurrence, OCCURRENCE_METHODS)
-from hmtk.seismicity.occurrence.utils import input_checks
+from hmtk.seismicity.occurrence.utils import (input_checks,
+                                              get_completeness_counts)
+                                              
 
 
 @OCCURRENCE_METHODS.add(
@@ -66,14 +68,20 @@ class Weichert(SeismicityOccurrence):
     def calculate(self, catalogue, config, completeness=None):
         '''Calculates recurrence using the Weichert (1980) method'''
         # Input checks
-        cmag, ctime, ref_mag, dmag, config = input_checks(catalogue,
-                                                          config,
-                                                          completeness)
+        cmag, ctime, ref_mag, _, config = input_checks(catalogue,
+                                                       config,
+                                                       completeness)
+        if not "dtime" in catalogue.data.keys() or not\
+            len(catalogue.data["dtime"]):
+            catalogue.data["dtime"] = catalogue.get_decimal_time()
+        if not catalogue.end_year:
+            catalogue.update_end_year()
+        if completeness is None:
+            start_year = float(np.min(catalogue.data["year"]))
+            completeness = np.column_stack([ctime, cmag])
         # Apply Weichert preparation
-        cent_mag, t_per, n_obs = self._weichert_prep(
-            catalogue.data['year'],
-            catalogue.data['magnitude'],
-            ctime, cmag, dmag)
+        cent_mag, t_per, n_obs = get_completeness_counts(
+            catalogue, completeness, config["magnitude_interval"])
 
         # A few more Weichert checks
         key_list = config.keys()
@@ -92,72 +100,6 @@ class Weichert(SeismicityOccurrence):
             sigma_rate = np.log10(aval + sigma_a) - np.log10(aval)
 
         return bval, sigma_b, rate, sigma_rate
-
-    def _weichert_prep(self, year, magnitude, ctime, cmag, dmag, dtime=1.0):
-        """
-        Allows to prepare table input for Weichert algorithm
-
-        :param year: catalog matrix year column
-        :type year: numpy.ndarray
-        :param magnitude: catalog matrix magnitude column
-        :type magnitude: numpy.ndarray
-        :param ctime: year of completeness for each period
-        :type ctime: numpy.ndarray
-        :param cmag: completeness magnitude for each period
-        :type cmag: numpy.ndarray
-        :param dmag: magnitude bin size (config file)
-        :type dmag: positive float
-        :param dtime: time bin size from config file)
-
-        :type dtime: float
-        :returns: central magnitude, tper length of observation period,
-                  n_obs number of events in magnitude increment
-        """
-
-        # In the case that the user defines a single value for ctime or cmag
-        # that is not an array
-        if not(isinstance(ctime, np.ndarray)) and not(isinstance(ctime, list)):
-            ctime = np.array([ctime])
-        if not(isinstance(cmag, np.ndarray)) and not(isinstance(cmag, list)):
-            cmag = np.array([cmag])
-        valid_events = np.ones(np.shape(year)[0], dtype=bool)
-        # Remove events from catalogue below completeness intervals
-        mag_eq_tolerance = dmag / 1.E7
-        time_tolerance = dtime / 1.E7
-
-        for iloc, mag in enumerate(cmag):
-            index0 = np.logical_and(magnitude < (mag - mag_eq_tolerance),
-                                    year < (ctime[iloc] - time_tolerance))
-            valid_events[index0] = False
-
-        year = year[valid_events]
-        magnitude = magnitude[valid_events]
-
-        mag_range = np.arange(np.min(magnitude) - dmag / 2.,
-                              np.max(magnitude) + (2.0 * dmag), dmag)
-        time_range = np.arange(np.min(year) - dtime / 2.,
-                               np.max(year) + (2.0 * dtime),
-                               dtime)
-
-        # Histogram data
-        fullcount1 = np.histogram2d(year, magnitude,
-                                    bins=[time_range, mag_range])[0]
-        n_y = np.shape(fullcount1)[1] - 1
-        cent_mag = ((mag_range[:-1] + mag_range[1:]) / 2.)[:-1]
-
-        n_obs = np.sum(fullcount1, axis=0)[:-1]
-        t_per = np.zeros(n_y)
-        for iloc, mag in enumerate(cmag):
-            index0 = cent_mag > (mag - (dmag / 2. - mag_eq_tolerance))
-            t_per[index0] = np.max(year) - ctime[iloc] + 1
-
-        #cut off magnitudes below the lowest magnitude of completeness
-        valid_location = np.nonzero(t_per)[0][0]
-        cent_mag = cent_mag[valid_location:]
-        t_per = t_per[valid_location:]
-        n_obs = n_obs[valid_location:]
-
-        return cent_mag, t_per, n_obs
 
     def weichert_algorithm(self, tper, fmag, nobs, mrate=0.0, bval=1.0,
                            itstab=1E-5, maxiter=1000):
@@ -224,3 +166,4 @@ class Weichert(SeismicityOccurrence):
                     warnings.warn('Maximum Number of Iterations reached')
                     return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
         return bval, sigb, a_m, siga_m, fn0, stdfn0
+
