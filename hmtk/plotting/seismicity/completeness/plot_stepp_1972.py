@@ -130,7 +130,8 @@ def create_stepp_plot(model, filename=None, filetype='png', filedpi=300,
                   markerfacecolor='white',
                   markeredgecolor=colour)
 
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
+    ax.legend(loc='center left',
+              bbox_to_anchor=(1, 0.5), frameon=False, fontsize='small')
     ax.set_xlabel('Time (years)')
     ax.set_ylabel("$\\sigma_{\\lambda} = \\sqrt{\\lambda} / \\sqrt{T}$")
     ax.autoscale(enable=True, axis='both', tight=True)
@@ -154,7 +155,7 @@ def plot_completeness_slices(catalogue, slice_key, slice_ids,
                    'increment_lock': True}
 
     fig, axes = plt.subplots(len(slice_ids), 1,
-                             figsize=(8, 3*len(slice_ids)), sharex=True)
+                             figsize=(5, 1.5*len(slice_ids)), sharex=True)
     fig.subplots_adjust(hspace=0)
     slice_completeness_tables = []
     for ax, slice_id in zip(axes, slice_ids):

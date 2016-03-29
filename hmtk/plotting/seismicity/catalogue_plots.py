@@ -269,7 +269,7 @@ def plot_mag_time_density_slices(
     """
 
     fig, axes = plt.subplots(len(slice_ids), 1,
-                             figsize=(8, 3*len(slice_ids)), sharex=True)
+                             figsize=(6, 1.5*len(slice_ids)), sharex=True)
     fig.subplots_adjust(hspace=0)
     for ax, slice_id, completeness_tables_slice \
             in zip(axes, slice_ids, completeness_tables):
